@@ -8,27 +8,37 @@ import Board
 
 data Move = Move Cell (Int, Int)
 
+data BoardState = BoardState {
+  board :: Board
+  -- whiteScore :: Int,
+  -- blackScore :: Int,
+  -- whiteMoves :: Int,
+  -- blackMoves :: Int
+  }
+
 putPiece :: Move -> Board -> Board
 putPiece (Move c pos) b =
-  let newMap = M.update (const (Just c)) pos (board b)
+  let newMap = M.update (const (Just c)) pos (posMap b)
   in Board newMap (size b)
 
 checkMove :: Move -> Board -> Maybe Board -- consider switching to `Either`
 checkMove move@(Move _ pos) b =
-  M.lookup pos (board b) >>= (\oldCell -> case oldCell of
+  M.lookup pos (posMap b) >>= (\oldCell -> case oldCell of
                                               Empty -> return (putPiece move b)
                                               _ -> Nothing)
-
 
 parseCommand :: String -> Move
 parseCommand s = case words . map toLower $ s of
   ["w", x, y] -> Move White (read x, read y)
   ["b", x, y] -> Move Black (read x, read y)
 
-playGame :: IO ()
+playGame :: StateT Board IO ()
 playGame = do
-  gameBoard <- return $ makeBoard 4
-  forever (do
-              move <- getLine >>= (\s -> return $ parseCommand s)
-              gameBoard <- return $ checkMove move gameBoard
-              print gameBoard)
+  command <- lift getLine
+  let move = parseCommand command
+  theBoard <- get
+  let newBoard = putPiece move theBoard
+  put newBoard
+  lift $ print newBoard
+  playGame
+  

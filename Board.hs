@@ -9,7 +9,7 @@ data Cell = Black
           deriving Show
 
 data Board = Board {
-  board :: M.Map (Int, Int) Cell,
+  posMap :: M.Map (Int, Int) Cell,
   size :: Int
   }
 
@@ -46,7 +46,7 @@ makeSepCol b i =
 makeCellCol :: Board -> Int -> [String]
 makeCellCol b i =
   let targetDiff = size b - 1 - i
-      cells = M.filterWithKey (\pos _ -> uncurry (-) pos == targetDiff) (board b)
+      cells = M.filterWithKey (\pos _ -> uncurry (-) pos == targetDiff) (posMap b)
       sortedCells = L.sortOn fst (M.toList cells)
       pad = replicate (abs targetDiff) ["  "]
   in
@@ -56,8 +56,8 @@ makeCellCol b i =
 printCellWithPos :: (Int, Int) -> Cell -> [String]
 printCellWithPos (x, y) c =
   case c of
-   Black -> ["▄▄", "▀▀"]
-   White -> ["  ", "__"]
+   Black -> ["▗▖", "▝▘"]
+   White -> ["┌┐", "└┘"]
    Empty -> [show x ++ show y, "__"]
 
 
