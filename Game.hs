@@ -1,44 +1,88 @@
 module Game where
 
-import Control.Monad (forever)
+import Data.Maybe (fromMaybe)
 import Control.Monad.State
 import qualified Data.Map as M
 import Data.Char (toLower)
 import Board
 
 data Move = Move Cell (Int, Int)
+          | EndTurn
 
-data BoardState = BoardState {
-  board :: Board
-  -- whiteScore :: Int,
-  -- blackScore :: Int,
-  -- whiteMoves :: Int,
-  -- blackMoves :: Int
+type Player = Cell
+
+data GameState = GameState {
+  board :: Board,
+  whiteScore :: Int,
+  blackScore :: Int,
+  whoseTurn :: Player,
+  movesLeft :: Int
   }
+               deriving Show
 
-putPiece :: Move -> Board -> Board
-putPiece (Move c pos) b =
-  let newMap = M.update (const (Just c)) pos (posMap b)
-  in Board newMap (size b)
+otherPlayer :: GameState -> Player
+otherPlayer gs = case whoseTurn gs of
+  White -> Black
+  Black -> White
 
-checkMove :: Move -> Board -> Maybe Board -- consider switching to `Either`
-checkMove move@(Move _ pos) b =
-  M.lookup pos (posMap b) >>= (\oldCell -> case oldCell of
-                                              Empty -> return (putPiece move b)
-                                              _ -> Nothing)
+scoreGame :: GameState -> Player -> Int
+scoreGame _ _ = 5
 
-parseCommand :: String -> Move
+makeMove :: [GameState] -> Move -> Maybe [GameState]
+makeMove allGS@(gs:gss) EndTurn =
+  let
+    newMovesLeft = 2
+    newWhiteScore = scoreGame gs White
+    newBlackScore = scoreGame gs Black
+    newGS = gs {whoseTurn = otherPlayer gs,
+                whiteScore = newWhiteScore,
+                blackScore = newBlackScore,
+                movesLeft = newMovesLeft}
+  in
+   Just $ newGS : allGS
+makeMove allGS@(gs:gss) (Move c pos) =
+  let newMap = M.update (const (Just c)) pos (posMap (board gs))
+      newMovesLeft = movesLeft gs - 1
+      newGS = gs {
+        board = Board newMap (size (board gs)),
+        movesLeft = newMovesLeft
+        }
+  in
+   if newMovesLeft == 0
+   then makeMove (newGS : allGS) EndTurn
+   else Just (newGS : allGS)
+
+checkMove :: [GameState] -> Move -> Maybe Move
+checkMove _ EndTurn = Just EndTurn
+checkMove (gs:gss) move@(Move cell pos) =
+  M.lookup pos (posMap (board gs))
+  >>= (\oldCell -> case oldCell of
+                   Empty -> Just move
+                   _ -> Nothing)
+  >>= (\m -> if cell == whoseTurn gs
+            then Just m
+            else Nothing)
+
+parseCommand :: String -> Maybe Move
 parseCommand s = case words . map toLower $ s of
-  ["w", x, y] -> Move White (read x, read y)
-  ["b", x, y] -> Move Black (read x, read y)
+  ["w", x, y] -> Just $ Move White (read x, read y)
+  ["b", x, y] -> Just $ Move Black (read x, read y)
+  "e":_ -> Just EndTurn
+  _ -> Nothing
 
-playGame :: StateT Board IO ()
+update :: String -> [GameState] -> Maybe [GameState]
+update s gs = parseCommand s
+              >>= checkMove gs
+              >>= makeMove gs
+
+initState :: GameState
+initState = GameState (makeBoard 4) 0 0 White 1
+
+playGame :: StateT [GameState] IO ()
 playGame = do
   command <- lift getLine
-  let move = parseCommand command
-  theBoard <- get
-  let newBoard = putPiece move theBoard
-  put newBoard
-  lift $ print newBoard
+  allGS <- get
+  let newGSs@(curr:_) = fromMaybe allGS (update command allGS)
+  lift $ print curr
+  put newGSs
   playGame
-  

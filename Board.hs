@@ -6,7 +6,7 @@ import qualified Data.List as L
 data Cell = Black
           | White
           | Empty
-          deriving Show
+          deriving(Show, Eq)
 
 data Board = Board {
   posMap :: M.Map (Int, Int) Cell,
