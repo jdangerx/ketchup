@@ -117,9 +117,6 @@ checkMove (gs:_) move@(Move cell pos) =
   >>= (\m -> if cell == whoseTurn gs
             then Just m
             else Nothing)
-  >>= (\m -> if M.null (M.filter (== Empty) (posMap . board $ gs))
-            then Nothing
-            else Just m)
 
 parseCommand :: String -> Maybe Move
 parseCommand s = case words . map toLower $ s of
@@ -136,6 +133,15 @@ update s gs = parseCommand s
 initState :: GameState
 initState = GameState (makeBoard 4) [0] [0] White 1
 
+gameEnded :: GameState -> Bool
+gameEnded = M.null . M.filter (== Empty) . posMap . board
+
+getWinner :: GameState -> String
+getWinner gs
+  | whiteScore gs == blackScore gs = "Tie game!" -- this cannot happen.
+  | whiteScore gs > blackScore gs = "White victory!"
+  | blackScore gs > whiteScore gs = "Black victory!"
+
 playGame :: StateT [GameState] IO ()
 playGame = do
   command <- lift getLine
@@ -143,4 +149,12 @@ playGame = do
   let newGSs@(curr:_) = fromMaybe allGS (update command allGS)
   lift $ print curr
   put newGSs
-  playGame
+  if gameEnded curr
+  then lift $ print $ getWinner curr
+  else playGame
+
+main :: IO ()
+main = do
+  print initState
+  runStateT playGame [initState]
+  return ()
