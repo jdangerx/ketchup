@@ -1,9 +1,10 @@
 module Game where
 
-import Data.Maybe (fromMaybe)
 import Control.Monad.State
-import qualified Data.Map as M
 import Data.Char (toLower)
+import qualified Data.Map as M
+import Data.Maybe (fromMaybe)
+import qualified Data.List as L
 import Board
 
 data Move = Move Cell (Int, Int)
@@ -13,8 +14,8 @@ type Player = Cell
 
 data GameState = GameState {
   board :: Board,
-  whiteScore :: Int,
-  blackScore :: Int,
+  whiteScore :: [Int],
+  blackScore :: [Int],
   whoseTurn :: Player,
   movesLeft :: Int
   }
@@ -25,22 +26,76 @@ otherPlayer gs = case whoseTurn gs of
   White -> Black
   Black -> White
 
-scoreGame :: GameState -> Player -> Int
-scoreGame _ _ = 5
+isNeighbor :: (Int, Int) -> (Int, Int) -> Bool
+isNeighbor (x, y) (x', y') =
+  let dy = y' - y
+      dx = x' - x
+  in abs dy <= 1 && abs dx <= 1 && abs (dx - dy) <= 1
+
+isNeighborOfList :: (Int, Int) -> [(Int, Int)] -> Bool
+isNeighborOfList _ [] = False
+isNeighborOfList pos (h:t) = isNeighbor pos h || isNeighborOfList pos t
+
+expandGroup ::
+  [(Int, Int)] -> [(Int, Int)] ->
+  ([(Int, Int)], [(Int, Int)])
+expandGroup group rest =
+  let biggerGroup = foldr
+                    (\pos gp -> if isNeighborOfList pos group
+                               then pos:gp
+                               else gp)
+                    group rest
+  in
+   (biggerGroup, rest L.\\ biggerGroup)
+
+groupByCont :: [[(Int, Int)]] -> [(Int, Int)] -> [[(Int, Int)]]
+groupByCont [] [] = [[]]
+groupByCont groups [] = groups
+groupByCont groups ls@(h:t) =
+  let newGroups = foldr (\group new -> fst (expandGroup group ls):new)
+                  [] groups
+      newRest = ls L.\\ concat newGroups
+  in
+   if newGroups == groups
+   then groupByCont ([h]:groups) t
+   else groupByCont newGroups newRest
+  -- for each group, grab everyone who's a neighbor if nobody is a
+  -- neighbor of any group, put someone in as a singleton, then run
+  -- again.
+
+scoreGame :: GameState -> Player -> [Int]
+scoreGame gs p = reverse . L.sort . map length .
+                 groupByCont [] .
+                 M.keys $ M.filter (== p) (posMap . board $ gs)
+
+didTriggerCatchup :: Int -> Int -> GameState -> Bool
+didTriggerCatchup newWhite newBlack old =
+  let
+    oldWhite = maximum $ whiteScore old
+    oldBlack = maximum $ blackScore old
+  in
+   case whoseTurn old of
+    White -> newWhite >= oldBlack && newWhite > oldWhite && newWhite > 1
+    Black -> newBlack >= oldWhite && newBlack > oldBlack && newBlack > 1
 
 makeMove :: [GameState] -> Move -> Maybe [GameState]
 makeMove allGS@(gs:gss) EndTurn =
   let
-    newMovesLeft = 2
-    newWhiteScore = scoreGame gs White
-    newBlackScore = scoreGame gs Black
+    newWScore = scoreGame gs White
+    newBScore = scoreGame gs Black
+    newMovesLeft = case gss of
+      -- white's first move doesn't trigger this.
+      _:_:_ -> if didTriggerCatchup (maximum newWScore) (maximum newBScore) gs
+                 then 3
+                 else 2
+      _ -> 2
     newGS = gs {whoseTurn = otherPlayer gs,
-                whiteScore = newWhiteScore,
-                blackScore = newBlackScore,
+                whiteScore = newWScore,
+                blackScore = newBScore,
                 movesLeft = newMovesLeft}
   in
    Just $ newGS : allGS
-makeMove allGS@(gs:gss) (Move c pos) =
+makeMove allGS@(gs:_) (Move c pos) =
   let newMap = M.update (const (Just c)) pos (posMap (board gs))
       newMovesLeft = movesLeft gs - 1
       newGS = gs {
@@ -54,7 +109,7 @@ makeMove allGS@(gs:gss) (Move c pos) =
 
 checkMove :: [GameState] -> Move -> Maybe Move
 checkMove _ EndTurn = Just EndTurn
-checkMove (gs:gss) move@(Move cell pos) =
+checkMove (gs:_) move@(Move cell pos) =
   M.lookup pos (posMap (board gs))
   >>= (\oldCell -> case oldCell of
                    Empty -> Just move
@@ -62,6 +117,9 @@ checkMove (gs:gss) move@(Move cell pos) =
   >>= (\m -> if cell == whoseTurn gs
             then Just m
             else Nothing)
+  >>= (\m -> if M.null (M.filter (== Empty) (posMap . board $ gs))
+            then Nothing
+            else Just m)
 
 parseCommand :: String -> Maybe Move
 parseCommand s = case words . map toLower $ s of
@@ -76,7 +134,7 @@ update s gs = parseCommand s
               >>= makeMove gs
 
 initState :: GameState
-initState = GameState (makeBoard 4) 0 0 White 1
+initState = GameState (makeBoard 4) [0] [0] White 1
 
 playGame :: StateT [GameState] IO ()
 playGame = do
