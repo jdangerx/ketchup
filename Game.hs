@@ -64,7 +64,7 @@ groupByCont groups ls@(h:t) =
   -- again.
 
 scoreGame :: GameState -> Player -> [Int]
-scoreGame gs p = reverse . L.sort . map length .
+scoreGame gs p = L.sortBy (flip compare) . map length .
                  groupByCont [] .
                  M.keys $ M.filter (== p) (posMap . board $ gs)
 
@@ -137,24 +137,31 @@ gameEnded :: GameState -> Bool
 gameEnded = M.null . M.filter (== Empty) . posMap . board
 
 getWinner :: GameState -> String
-getWinner gs
-  | whiteScore gs == blackScore gs = "Tie game!" -- this cannot happen.
-  | whiteScore gs > blackScore gs = "White victory!"
-  | blackScore gs > whiteScore gs = "Black victory!"
+getWinner gs =
+  let
+    white = scoreGame gs White
+    black = scoreGame gs Black
+  in case compare white black of
+      EQ -> "Tie game!" -- this cannot happen.
+      GT -> "White victory!"
+      LT -> "Black victory!"
 
 playGame :: StateT [GameState] IO ()
-playGame = do
-  command <- lift getLine
-  allGS <- get
-  let newGSs@(curr:_) = fromMaybe allGS (update command allGS)
-  lift $ print curr
-  put newGSs
-  if gameEnded curr
-  then lift $ print $ getWinner curr
-  else playGame
+playGame =
+  do
+    command <- lift getLine
+    allGS <- get
+    let newGSs@(curr:_) = fromMaybe allGS (update command allGS)
+    lift $ print curr
+    put newGSs
+    if gameEnded curr
+      then lift (print (getWinner curr))
+      else playGame
+      -- then lift $ print $ getWinner curr
+      -- else playGame
 
 main :: IO ()
 main = do
   print initState
-  runStateT playGame [initState]
+  execStateT playGame [initState]
   return ()

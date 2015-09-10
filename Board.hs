@@ -35,31 +35,34 @@ diam = (+ (-1)) . (* 2) . size
 makeSepCol :: Board -> Int -> [String]
 makeSepCol b i =
   let numSep = if i < size b then i + size b else 3 * size b - 1 - i
-      pad = replicate (2 * size b - 1 - numSep) " "
-      leftLine = pad ++ concat (replicate numSep ["/", "\\"]) ++ pad
+      pad = replicate (2*(2 * size b - 1 - numSep)) "  "
+      leftSep = [" /", "/ ", "\\ ", " \\"]
+      rightSep = ["\\ ", " \\", " /", "/ "]
+      sep = if i < size b then leftSep else rightSep
+      line = "  " : "  " : pad ++ concat (replicate numSep sep) ++ pad
   in
-   if i < size b
-   then " " : " " : leftLine
-   else " " : " " : reverse leftLine
-
+   line
 
 makeCellCol :: Board -> Int -> [String]
 makeCellCol b i =
   let targetDiff = size b - 1 - i
       cells = M.filterWithKey (\pos _ -> uncurry (-) pos == targetDiff) (posMap b)
       sortedCells = L.sortOn fst (M.toList cells)
-      pad = replicate (abs targetDiff) ["  "]
+      pad = replicate (2 * abs targetDiff) ["      "]
   in
-   concat $ ["  "] : pad ++ ["__"] : map (uncurry printCellWithPos) sortedCells ++ pad
+   concat $ ["      "] : pad ++ ["______"] : map (uncurry printCellWithPos) sortedCells ++ pad
 
+pad :: Int -> Char -> String -> String
+pad n c
+  | n <= 1 = id
+  | otherwise = pad (n - 1) c . (:) c
 
 printCellWithPos :: (Int, Int) -> Cell -> [String]
 printCellWithPos (x, y) c =
   case c of
-   Black -> ["▗▖", "▝▘"]
-   White -> ["┌┐", "└┘"]
-   Empty -> [show x ++ show y, "__"]
-
+   Black -> ["      ", " \x1b[37;1m▗██▖\x1b[0m ", " \x1b[37;1m▝██▘\x1b[0m ", "______"]
+   White -> ["      ", " \x1b[30m▗██▖\x1b[0m ", " \x1b[30m▝██▘\x1b[0m ", "______"]
+   Empty -> ["      ", pad 6 ' ' $ show x, pad 6 ' ' $ show y, "______"]
 
 makeCols :: Board -> [[String]]
 makeCols b =
