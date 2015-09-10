@@ -60,8 +60,8 @@ pad n c
 printCellWithPos :: (Int, Int) -> Cell -> [String]
 printCellWithPos (x, y) c =
   case c of
-   Black -> ["      ", " \x1b[37;1m▗██▖\x1b[0m ", " \x1b[37;1m▝██▘\x1b[0m ", "______"]
-   White -> ["      ", " \x1b[30m▗██▖\x1b[0m ", " \x1b[30m▝██▘\x1b[0m ", "______"]
+   Black -> ["      ", " \x1b[30m▗██▖\x1b[0m ", " \x1b[30m▝██▘\x1b[0m ", "______"]
+   White -> ["      ", " \x1b[37;1m▗██▖\x1b[0m ", " \x1b[37;1m▝██▘\x1b[0m ", "______"]
    Empty -> ["      ", pad 6 ' ' $ show x, pad 6 ' ' $ show y, "______"]
 
 makeCols :: Board -> [[String]]
